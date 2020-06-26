@@ -1,12 +1,12 @@
+#!/usr/bin/env python
+
 import numpy as np
 from typing import Tuple, Optional, Dict, Any
-import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
-import matplotlib.animation as animation
-from matplotlib.colors import LinearSegmentedColormap
+
+# ParameterType = Union[float, Iterable[float]]
 
 
-def discrete_laplacian(X: np.array) -> np.array:
+def discrete_laplacian(X: np.array, kind: str = "original") -> np.array:
     """Compute the 2-D discrete Laplacian.
 
     Parameters
@@ -18,45 +18,49 @@ def discrete_laplacian(X: np.array) -> np.array:
     -------
     np.array
         [description]
-    
+
     Notes
     -------
     See https://en.wikipedia.org/wiki/Discrete_Laplace_operator#Implementation_via_operator_discretization
     """
 
-    Y = -4 * X
+    if kind == "original":
 
-    # by using np.roll, the borders of the matrix 'wrap around'
-    Y += np.roll(X, (1, 0), (0, 1))
-    Y += np.roll(X, (-1, 0), (0, 1))
-    Y += np.roll(X, (0, -1), (0, 1))
-    Y += np.roll(X, (0, 1), (0, 1))
+        L = -4 * X
 
-    # # a different way 
-    # L = -4 * M
-    # L = L + np.roll(M, -1)
-    # L = L + np.roll(M, 1)
-    # L = L + np.roll(M, -1).T
-    # L = L + np.roll(M, 1).T
+        # by using np.roll, the borders of the matrix 'wrap around'
+        L += np.roll(X, (1, 0), (0, 1))
+        L += np.roll(X, (-1, 0), (0, 1))
+        L += np.roll(X, (0, -1), (0, 1))
+        L += np.roll(X, (0, 1), (0, 1))
 
-    return Y
+        # # a different way
+        # L = -4 * M
+        # L = L + np.roll(M, -1)
+        # L = L + np.roll(M, 1)
+        # L = L + np.roll(M, -1).T
+        # L = L + np.roll(M, 1).T
 
+    elif kind == "isotropic":
+        L = -3 * X
+        L += 0.5 * np.roll(X, (0, -1), (0, 1))  # right neighbor
+        L += 0.5 * np.roll(X, (0, +1), (0, 1))  # left neighbor
+        L += 0.5 * np.roll(X, (-1, 0), (0, 1))  # top neighbor
+        L += 0.5 * np.roll(X, (+1, 0), (0, 1))  # bottoX neighbor
 
-def discrete_laplacian_isotropic(M: np.array):
-    """Get the discrete Laplacian of matrix M"""
-    L = -3 * M
-    L += 0.5 * np.roll(M, (0, -1), (0, 1))  # right neighbor
-    L += 0.5 * np.roll(M, (0, +1), (0, 1))  # left neighbor
-    L += 0.5 * np.roll(M, (-1, 0), (0, 1))  # top neighbor
-    L += 0.5 * np.roll(M, (+1, 0), (0, 1))  # bottom neighbor
+        L += 0.25 * np.roll(X, (1, 1), (0, 1))
+        L += 0.25 * np.roll(X, (-1, -1), (0, 1))
+        L += 0.25 * np.roll(X, (1, -1), (0, 1))
+        L += 0.25 * np.roll(X, (-1, 1), (0, 1))
 
-    L += 0.25 * np.roll(M, (1, 1), (0, 1))
-    L += 0.25 * np.roll(M, (-1, -1), (0, 1))
-    L += 0.25 * np.roll(M, (1, -1), (0, 1))
-    L += 0.25 * np.roll(M, (-1, 1), (0, 1))
+    else:
+        raise NotImplementedError(
+            f"""Type {kind} is not implemented.
+                Appropriate kinds are 'normal' and 'isotropic'
+                """
+        )
 
     return L
-
 
 
 def reaction_diffusion(
@@ -64,13 +68,13 @@ def reaction_diffusion(
     B: np.array,
     dA: float,
     dB: float,
-    kill: float, # make this accept a distribution implenting .sample or a float
-    feed: float, # ditto here
-    delta_t: int =1,
-    kind: str="normal",
-    mask: Optional[np.array]
+    kill: float,
+    feed: float,
+    delta_t: int = 1,
+    kind: str = "normal",
+    mask: Optional[np.array] = None,
 ) -> Tuple[np.array, np.array]:
-    """[summary]
+    """Run one iteration of reaction diffusion.
 
     Parameters
     ----------
@@ -103,17 +107,9 @@ def reaction_diffusion(
     an
         [description]
     """
-    
-    if kind == "normal":
-        LA = discrete_laplacian(A)
-        LB = discrete_laplacian(B)
 
-    elif kind == "isonormal":
-        LA = discrete_laplacian_isotropic(A)
-        LB = discrete_laplacian_isotropic(B)
-    else:
-        # raise an error
-        pass
+    LA = discrete_laplacian(A, kind)
+    LB = discrete_laplacian(B)
 
     # create the feed matrix
     # N2 = A.shape[0] // 2
@@ -135,7 +131,7 @@ def reaction_diffusion(
 
     A += diff_A
     B += diff_B
-    
+
     if mask is not None:
         A[mask] = 0
         B[mask] = 0
@@ -143,14 +139,26 @@ def reaction_diffusion(
     return A, B
 
 
+def run_reaction_diffusion(
+    dA: ParameterType,
+    dB: ParameterType,
+    kill: ParameterType,
+    feed: ParameterType,
+    grid_size: Tuple[int, int] = (100, 100),
+    kind: str = "normal",
+    mask: np.array = None,
+):
+    """Coordinate a series of reaction diffusion steps."""
+    pass
+
+
 def setup_grid(
-    n_dim: Tuple[int, int] = (100,100), random_influence=0.2, seed: int = 11
+    n_dim: Tuple[int, int] = (100, 100), random_influence=0.2, seed: int = 11
 ) -> Tuple[np.array, np.array]:
 
-
-    A = (1 - random_influence) * np.ones(
+    A = (1 - random_influence) * np.ones(n_dim) + random_influence * np.random.random(
         n_dim
-    ) + random_influence * np.random.random(n_dim)
+    )
 
     # Let's assume there's only a bit of B everywhere
     B = random_influence * np.random.random(n_dim)
@@ -180,19 +188,17 @@ def setup_grid(
     return A, B
 
 
-def plot(X: np.array, cmap:str="Greys") -> Figure:
-    fig = Figure()
-    ax = fig.subplots()
-    ax.imshow(X, cmap=cmap)
-    ax.axis("off")
+def simulate():
+    pass
 
-COOL_SETTINGS: Dict[str, Dict[str, Any]] = dict(
-    "lines and dots" = dict(dA=0.16, dB=0.08, kill=0.06, feed=0.0299, delta_t=1) ,
-"snake" = dict(dA=0.2, dB=0.1, kill=0.065, feed=0.05, delta_t=2) ,
-"mitosis" = dict(dA=0.24, dB=0.08, kill=0.07, feed=0.035, delta_t=1),
-"fingerprint" = dict(dA=0.25, dB=0.1, kill=0.065, feed=0.055, delta_t=1) ,
-"snowflake maze" = dict(dA=0.2, dB=0.1, kill=0.062, feed=0.05, delta_t=1) ,
-"coral maze" = dict(dA=0.2, dB=0.06, kill=0.062, feed=0.05, delta_t=1),
-"maze"= dict(dA=0.22, dB=0.06, kill=0.062, feed=0.05, delta_t=1) ,
-"brain" = dict(dA=0.2, dB=0.1, kill=0.065, feed=0.05, delta_t=2)
-)
+
+COOL_SETTINGS = {
+    "lines and dots": dict(dA=0.16, dB=0.08, kill=0.06, feed=0.0299, delta_t=1),
+    "snake": dict(dA=0.2, dB=0.1, kill=0.065, feed=0.05, delta_t=2),
+    "mitosis": dict(dA=0.24, dB=0.08, kill=0.07, feed=0.035, delta_t=1),
+    "fingerprint": dict(dA=0.25, dB=0.1, kill=0.065, feed=0.055, delta_t=1),
+    "snowflake maze": dict(dA=0.2, dB=0.1, kill=0.062, feed=0.05, delta_t=1),
+    "coral maze": dict(dA=0.2, dB=0.06, kill=0.062, feed=0.05, delta_t=1),
+    "maze": dict(dA=0.22, dB=0.06, kill=0.062, feed=0.05, delta_t=1),
+    "brain": dict(dA=0.2, dB=0.1, kill=0.065, feed=0.05, delta_t=2),
+}
