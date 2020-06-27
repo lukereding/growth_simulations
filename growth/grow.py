@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
-import numpy as np
-from typing import Tuple, Optional, Dict, Any
+from collections.abc import Iterable
+from typing import Iterable as IterableType
+from typing import List, Optional, Tuple, Union
 
-# ParameterType = Union[float, Iterable[float]]
+import numpy as np
 
 
 def discrete_laplacian(X: np.array, kind: str = "original") -> np.array:
@@ -55,8 +56,8 @@ def discrete_laplacian(X: np.array, kind: str = "original") -> np.array:
 
     else:
         raise NotImplementedError(
-            f"""Type {kind} is not implemented.
-                Appropriate kinds are 'normal' and 'isotropic'
+            f"""Type '{kind}' is not implemented.
+                Appropriate kinds are 'original' and 'isotropic'
                 """
         )
 
@@ -71,7 +72,7 @@ def reaction_diffusion(
     kill: float,
     feed: float,
     delta_t: int = 1,
-    kind: str = "normal",
+    kind: str = "original",
     mask: Optional[np.array] = None,
 ) -> Tuple[np.array, np.array]:
     """Run one iteration of reaction diffusion.
@@ -92,10 +93,10 @@ def reaction_diffusion(
         Feed rate for B
     delta_t : int
         Size of the time step
-    mask : Optional[np.array]
-        A mask to apply to the both A and B marices at the end of the growth step.
     kind : str, optional
         Determines the type of Laplacian to use, by default "normal"
+    mask : Optional[np.array]
+        A mask to apply to the both A and B marices at the end of the growth step.
 
     Returns
     -------
@@ -140,16 +141,56 @@ def reaction_diffusion(
 
 
 def run_reaction_diffusion(
-    dA: ParameterType,
-    dB: ParameterType,
-    kill: ParameterType,
-    feed: ParameterType,
+    n: int,
+    dA: Union[float, IterableType[float]],
+    dB: Union[float, IterableType[float]],
+    kill: Union[float, IterableType[float]],
+    feed: Union[float, IterableType[float]],
     grid_size: Tuple[int, int] = (100, 100),
-    kind: str = "normal",
+    kind: str = "original",
     mask: np.array = None,
-):
+    n_to_return: int = 1,
+) -> List[Tuple[np.array, np.array]]:
     """Coordinate a series of reaction diffusion steps."""
-    pass
+
+    # make sure that if the parameters were passed as were iterables,
+    # that they match the dimensions of the grid
+    for param in [dA, dB, kill, feed]:
+        if isinstance(param, Iterable):
+            assert (
+                len(param) == grid_size[0]
+            ), f"Parameter {param} has the wrong dimensions. Should be of length {grid_size[0]}"
+
+    # make sure the mask is the right shape
+    if mask is not None:
+        assert mask.shape == grid_size, "The mask size and grid size don't match"
+
+    # setup the initial grid
+    A, B = setup_grid(grid_size, random_influence=0.2)
+
+    # compute which steps to save
+    steps_to_save = np.linspace(1, n, n_to_return + 1, dtype=np.int)
+
+    results = []
+
+    for step in range(n):
+        reaction_diffusion(
+            A=A,
+            B=B,
+            dA=dA,
+            dB=dB,
+            kill=kill,
+            feed=feed,
+            delta_t=1,
+            kind=kind,
+            mask=mask,
+        )
+
+        # save out the result
+        if step in steps_to_save:
+            results.append((A, B))
+
+    return results
 
 
 def setup_grid(
@@ -193,12 +234,12 @@ def simulate():
 
 
 COOL_SETTINGS = {
-    "lines and dots": dict(dA=0.16, dB=0.08, kill=0.06, feed=0.0299, delta_t=1),
-    "snake": dict(dA=0.2, dB=0.1, kill=0.065, feed=0.05, delta_t=2),
-    "mitosis": dict(dA=0.24, dB=0.08, kill=0.07, feed=0.035, delta_t=1),
-    "fingerprint": dict(dA=0.25, dB=0.1, kill=0.065, feed=0.055, delta_t=1),
-    "snowflake maze": dict(dA=0.2, dB=0.1, kill=0.062, feed=0.05, delta_t=1),
-    "coral maze": dict(dA=0.2, dB=0.06, kill=0.062, feed=0.05, delta_t=1),
-    "maze": dict(dA=0.22, dB=0.06, kill=0.062, feed=0.05, delta_t=1),
-    "brain": dict(dA=0.2, dB=0.1, kill=0.065, feed=0.05, delta_t=2),
+    "lines and dots": dict(dA=0.16, dB=0.08, kill=0.06, feed=0.0299),
+    "snake": dict(dA=0.2, dB=0.1, kill=0.065, feed=0.05),
+    "mitosis": dict(dA=0.24, dB=0.08, kill=0.07, feed=0.035),
+    "fingerprint": dict(dA=0.25, dB=0.1, kill=0.065, feed=0.055),
+    "snowflake maze": dict(dA=0.2, dB=0.1, kill=0.062, feed=0.05),
+    "coral maze": dict(dA=0.2, dB=0.06, kill=0.062, feed=0.05),
+    "maze": dict(dA=0.22, dB=0.06, kill=0.062, feed=0.05),
+    "brain": dict(dA=0.2, dB=0.1, kill=0.065, feed=0.05),
 }

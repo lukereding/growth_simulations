@@ -1,7 +1,8 @@
-from matplotlib.colors import LinearSegmentedColormap
-import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 import matplotlib.animation as animation
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.figure import Figure
 
 mustard_colors = [(241 / 255, 240 / 255, 226 / 255), (216 / 255, 174 / 255, 72 / 255)]
 colors_pom = [(241 / 255, 240 / 255, 226 / 255), (108 / 255, 40 / 255, 49 / 255,)]
