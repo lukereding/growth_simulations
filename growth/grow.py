@@ -5,6 +5,7 @@ from typing import Iterable as IterableType
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
+from numexpr import evaluate
 
 
 def discrete_laplacian(X: np.array, kind: str = "original") -> np.array:
@@ -94,7 +95,7 @@ def reaction_diffusion(
     delta_t : int
         Size of the time step
     kind : str, optional
-        Determines the type of Laplacian to use, by default "normal"
+        Determines the type of Laplacian to use, by default "original"
     mask : Optional[np.array]
         A mask to apply to the both A and B marices at the end of the growth step.
 
@@ -103,14 +104,10 @@ def reaction_diffusion(
     Tuple[np.array, np.array]
         A tuple of the A and B matrices updated
 
-    Raises
-    ------
-    an
-        [description]
     """
 
     LA = discrete_laplacian(A, kind)
-    LB = discrete_laplacian(B)
+    LB = discrete_laplacian(B, kind)
 
     # create the feed matrix
     # N2 = A.shape[0] // 2
@@ -127,8 +124,8 @@ def reaction_diffusion(
     # kill_mat[:,] = x
 
     # Now apply the update formula
-    diff_A = (dA * LA - A * B ** 2 + feed * (1 - A)) * delta_t
-    diff_B = (dB * LB + A * B ** 2 - (kill + feed) * B) * delta_t
+    diff_A = evaluate("(dA * LA - A * B ** 2 + feed * (1 - A)) * delta_t")
+    diff_B = evaluate("(dB * LB + A * B ** 2 - (kill + feed) * B) * delta_t")
 
     A += diff_A
     B += diff_B
@@ -146,7 +143,7 @@ def run_reaction_diffusion(
     dB: Union[float, IterableType[float]],
     kill: Union[float, IterableType[float]],
     feed: Union[float, IterableType[float]],
-    grid_size: Tuple[int, int] = (100, 100),
+    grid_size: Tuple[int, int] = (1_000, 1_000),
     kind: str = "original",
     mask: np.array = None,
     n_to_return: int = 1,
@@ -243,3 +240,6 @@ COOL_SETTINGS = {
     "maze": dict(dA=0.22, dB=0.06, kill=0.062, feed=0.05),
     "brain": dict(dA=0.2, dB=0.1, kill=0.065, feed=0.05),
 }
+
+if __name__ == "__main__":
+    run_reaction_diffusion(n=1_000, **COOL_SETTINGS["brain"])
